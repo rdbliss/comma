@@ -37,8 +37,8 @@ type PathParams struct {
     k int
     b int
     L int
-    orderCache map[OrderKey]OrderCached
-    kCache map[PathPoint]int
+    orderCache [][]OrderCached
+    kCache [][][]int
     cyc_cache CycCache
 }
 
@@ -46,21 +46,6 @@ type PathPoint struct {
     d int
     u int
     k int
-}
-
-type KAnswer struct {
-    u int
-    found bool
-}
-
-type KUpdate struct {
-    u int
-    point PathPoint
-}
-
-type KLookup struct {
-    point PathPoint
-    answer chan KAnswer
 }
 
 type WorkParams struct {
@@ -79,14 +64,15 @@ func is_mine(b int, u int) bool {
 
 // cache all of the transformations (d, u) -> (l, k), where b^i is periodic mod
 // S(d, u) with period l for i >= k.
-func cacheOrders(b int, cycles CycCache) map[OrderKey]OrderCached {
-    orderCache := make(map[OrderKey]OrderCached)
+func cacheOrders(b int, cycles CycCache) [][]OrderCached {
+    orderCache := make([][]OrderCached, b)
     for d := 1; d < b; d++ {
+        orderCache[d] = make([]OrderCached, b)
         for u := 0; u < b; u++ {
             cycle := cycles[CycKey{d, u}]
             S := slicesum(cycle)
             ord, start := order(b, S)
-            orderCache[OrderKey{d, u % b}] = OrderCached {ord, start}
+            orderCache[d][u] = OrderCached {ord, start}
         }
     }
 
@@ -186,12 +172,7 @@ func realMod(x int, y int) int {
 }
 
 func advance_point(point PathPoint, params PathParams) PathPoint {
-    ord, ok := params.orderCache[OrderKey {point.d, point.u % params.b}]
-
-    if !ok {
-        fmt.Println(point)
-        panic("can't find order cache")
-    }
+    ord := params.orderCache[point.d][point.u % params.b]
 
     var new_d int
     var new_u int
@@ -211,12 +192,7 @@ func advance_point(point PathPoint, params PathParams) PathPoint {
         time.Sleep(5 * time.Second)
     }
     reduced_k := point.k % ord.ord
-    reduced_point := PathPoint{point.d, point.u, reduced_k}
-    new_u, ok = params.kCache[reduced_point]
-
-    if !ok {
-        panic("ahhh")
-    }
+    new_u = params.kCache[point.d][point.u][reduced_k]
 
     return PathPoint{new_d, new_u, new_k}
 }
@@ -332,15 +308,16 @@ func valid_count(b int) int {
 
 // create a map of the transforms (d, u, k mod l(d, u)) -> u'
 // this map is read-only after return!
-func cacheAdvances(b int, cycCache CycCache, orderCache map[OrderKey]OrderCached) map[PathPoint]int {
-    k_cache := make(map[PathPoint]int)
-    cacheMutex := sync.Mutex{}
+func cacheAdvances(b int, cycCache CycCache, orderCache [][]OrderCached) [][][]int {
+    k_cache := make([][][]int, b)
 
     // this might start a *lot* of goroutines.
     // here goes nothing!
     var wg sync.WaitGroup
 
     for d := 1; d < b; d++ {
+        k_cache[d] = make([][]int, b * b)
+
         var new_d int
         if d == b - 1 {
             new_d = 1
@@ -359,7 +336,9 @@ func cacheAdvances(b int, cycCache CycCache, orderCache map[OrderKey]OrderCached
             // determine the correct modulus for k.
             cyc := cycCache[CycKey {d, u % b}]
             S := slicesum(cyc)
-            ord := orderCache[OrderKey {d, u % b}]
+            ord := orderCache[d][u % b]
+
+            k_cache[d][u] = make([]int, ord.ord)
 
             for k := range(ord.ord) {
                 wg.Add(1)
@@ -383,9 +362,7 @@ func cacheAdvances(b int, cycCache CycCache, orderCache map[OrderKey]OrderCached
                     }
 
                     new_u := gap
-                    cacheMutex.Lock()
-                    k_cache[PathPoint{d, u, k}] = new_u
-                    cacheMutex.Unlock()
+                    k_cache[d][u][k] = new_u
                 }()
             }
         }
