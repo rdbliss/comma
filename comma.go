@@ -11,14 +11,8 @@ import (
     "strconv"
     "runtime/pprof"
     "os"
-    "log"
     "github.com/pborman/getopt/v2"
 )
-
-type OrderKey struct {
-    d int
-    uModB int
-}
 
 type OrderCached struct {
     ord int
@@ -38,7 +32,7 @@ type PathParams struct {
     b int
     L int
     orderCache [][]OrderCached
-    kCache [][][]int
+    kCache [][][]uint16
     cyc_cache CycCache
 }
 
@@ -50,8 +44,9 @@ type PathPoint struct {
 
 type WorkParams struct {
     Workers int
-    Feeders int
     Readers int
+    WorkStart int
+    WorkEnd int
 }
 
 func is_mine(b int, u int) bool {
@@ -192,7 +187,7 @@ func advance_point(point PathPoint, params PathParams) PathPoint {
         time.Sleep(5 * time.Second)
     }
     reduced_k := point.k % ord.ord
-    new_u = params.kCache[point.d][point.u][reduced_k]
+    new_u = int(params.kCache[point.d][point.u][reduced_k])
 
     return PathPoint{new_d, new_u, new_k}
 }
@@ -233,27 +228,55 @@ func get_lcm_cycles(b int) (int, CycCache) {
     return L, cycles
 }
 
-func isFinite(b int, params WorkParams) (int, int) {
+func isFinite(b int, params WorkParams) (int, int, error) {
     L, cycles := get_lcm_cycles(b)
+    totalWork := (b - 2) * L
+
+    errorString := ""
+    if params.WorkStart < 0 {
+        errorString = "isFinite: negative start"
+    }
+
+    if params.WorkStart >= totalWork {
+        errorString = "isFinite: start exceeds total work"
+    }
+
+    if params.WorkEnd < 0 {
+        errorString = "isFinite: negative end"
+    }
+
+    if params.WorkEnd > totalWork {
+        errorString = "isFinite: end exceeds total work"
+    }
+
+    if errorString != "" {
+        return 0, 0, fmt.Errorf("%s (actual work: %d to %d)", errorString, 0, totalWork)
+    }
+
     orderCache := cacheOrders(b, cycles)
     kCache := cacheAdvances(b, cycles, orderCache)
 
-    work := make(chan PathParams)
+    work := make(chan PathParams, params.Workers)
     report_counts := make(chan int)
 
     // put work into a queue
-    var workWg sync.WaitGroup
-    for i := range params.Feeders {
-        workWg.Add(1)
-        go func() {
-            for d := 2 + (i * (b - 2)) / params.Feeders; d < 2 + ((i + 1) * (b - 2)) / params.Feeders; d++{
-            for k := 0; k < L; k++ {
-                work <- PathParams{d, k, b, L, orderCache, kCache, cycles}
-            }
-            }
-            workWg.Done()
-        }()
+    // turn the integers 0, 1, ..., totalWork - 1 into points (d, k) with
+    // 2 <= d < b and 0 <= k < L, then pass on only the points in
+    // [params.StartWork, params.EndWork).
+    if params.WorkEnd == 0 {
+        params.WorkEnd = totalWork
     }
+
+    go func() {
+        for j := params.WorkStart; j < params.WorkEnd; j++ {
+            k := j % L
+            d := 2 + (j - k) / L
+            // fmt.Println("j:", j)
+            // fmt.Println("d, k:", d, k)
+            work <- PathParams{d, k, b, L, orderCache, kCache, cycles}
+        }
+        close(work)
+    }()
 
     var processWg sync.WaitGroup
     for _ = range params.Workers {
@@ -264,8 +287,7 @@ func isFinite(b int, params WorkParams) (int, int) {
 
     // listen for count updates
     var countWg sync.WaitGroup
-    expected_work := (b - 2) * L
-    bar := progressbar.Default(int64(expected_work))
+    bar := progressbar.Default(int64(totalWork))
 
     var count atomic.Uint64
 
@@ -285,14 +307,12 @@ func isFinite(b int, params WorkParams) (int, int) {
     }()
     }
 
-    workWg.Wait()
-    close(work)
     processWg.Wait()
     close(report_counts)
     countWg.Wait()
 
     target := valid_count(b) * L
-    return int(count.Load()), target
+    return int(count.Load()), target, nil
 }
 
 func valid_count(b int) int {
@@ -308,15 +328,15 @@ func valid_count(b int) int {
 
 // create a map of the transforms (d, u, k mod l(d, u)) -> u'
 // this map is read-only after return!
-func cacheAdvances(b int, cycCache CycCache, orderCache [][]OrderCached) [][][]int {
-    k_cache := make([][][]int, b)
+func cacheAdvances(b int, cycCache CycCache, orderCache [][]OrderCached) [][][]uint16 {
+    k_cache := make([][][]uint16, b)
 
     // this might start a *lot* of goroutines.
     // here goes nothing!
     var wg sync.WaitGroup
 
     for d := 1; d < b; d++ {
-        k_cache[d] = make([][]int, b * b)
+        k_cache[d] = make([][]uint16, b * b)
 
         var new_d int
         if d == b - 1 {
@@ -338,7 +358,7 @@ func cacheAdvances(b int, cycCache CycCache, orderCache [][]OrderCached) [][][]i
             S := slicesum(cyc)
             ord := orderCache[d][u % b]
 
-            k_cache[d][u] = make([]int, ord.ord)
+            k_cache[d][u] = make([]uint16, ord.ord)
 
             for k := range(ord.ord) {
                 wg.Add(1)
@@ -362,7 +382,7 @@ func cacheAdvances(b int, cycCache CycCache, orderCache [][]OrderCached) [][][]i
                     }
 
                     new_u := gap
-                    k_cache[d][u][k] = new_u
+                    k_cache[d][u][k] = uint16(new_u)
                 }()
             }
         }
@@ -377,8 +397,9 @@ func main() {
     helpFlag := getopt.BoolLong("help", 'h', "display help")
     estimateLimit := getopt.IntLong("estimate", 0, 10, "estimate runtime up to b using runtimes from 2 to value")
     workers := getopt.IntLong("workers", 'w', runtime.NumCPU() * 2, "number of workers to use processesing paths")
-    feeders := getopt.IntLong("feeders", 'f', runtime.NumCPU(), "number of threads feeding work to workers")
     readers := getopt.IntLong("readers", 'r', runtime.NumCPU(), "number of threads reading results from workers")
+    workStart := getopt.IntLong("workstart", 's', 0, "process only paths numbered from s to t (exclusive)")
+    workStop := getopt.IntLong("workstop", 't', 0, "process only paths numbered from s to t (exclusive). A value of 0 indicates that all paths numbered after s should be included. In particular, s = t = 0 (the default) processes all paths.")
     cpuprofile := getopt.StringLong("cpuprofile", 0, "", "write cpu profile to file")
     getopt.SetParameters("b")
 
@@ -393,7 +414,7 @@ func main() {
         fmt.Println("cpuprofile:", *cpuprofile)
         f, err := os.Create(*cpuprofile)
         if err != nil {
-            log.Fatal(err)
+            fmt.Println(err)
         }
         pprof.StartCPUProfile(f)
         defer pprof.StopCPUProfile()
@@ -402,7 +423,7 @@ func main() {
     args := getopt.Args()
 
     if len(args) < 1 {
-        fmt.Fprintln(os.Stderr, "Error: missing b")
+        fmt.Println("Error: missing b")
         getopt.PrintUsage(os.Stderr)
         return
     }
@@ -415,10 +436,16 @@ func main() {
         return
     }
 
-    params := WorkParams {*workers, *feeders, *readers}
+    params := WorkParams {*workers, *readers, *workStart, *workStop}
 
     if !getopt.IsSet("estimate") {
-        fmt.Println(isFinite(b, params))
+        count, expected, err := isFinite(b, params)
+        if err != nil {
+            fmt.Println(err)
+        } else {
+            fmt.Println(count, expected)
+        }
+
         return
     }
 
