@@ -232,6 +232,11 @@ func isFinite(b int, params WorkParams) (int, int, error) {
     L, cycles := get_lcm_cycles(b)
     totalWork := (b - 2) * L
 
+    // edge case for b = 2
+    if totalWork == 0 {
+        return 0, valid_count(2), nil
+    }
+
     errorString := ""
     if params.WorkStart < 0 {
         errorString = "isFinite: negative start"
@@ -287,7 +292,8 @@ func isFinite(b int, params WorkParams) (int, int, error) {
 
     // listen for count updates
     var countWg sync.WaitGroup
-    bar := progressbar.Default(int64(totalWork))
+    ourWork := params.WorkEnd - params.WorkStart
+    bar := progressbar.Default(int64(ourWork))
 
     var count atomic.Uint64
 
