@@ -393,6 +393,12 @@ func cacheAdvances(b int, cycCache CycCache, orderCache [][]OrderCached) [][][]u
     return k_cache
 }
 
+func printWork(b int) {
+    L, _ := get_lcm_cycles(b)
+
+    fmt.Println((b - 2) * L)
+}
+
 func main() {
     helpFlag := getopt.BoolLong("help", 'h', "display help")
     estimateLimit := getopt.IntLong("estimate", 0, 10, "estimate runtime up to b using runtimes from 2 to value")
@@ -402,6 +408,7 @@ func main() {
     workStop := getopt.IntLong("workstop", 't', 0, "process only paths numbered from s to t (exclusive). A value of 0 indicates that all paths numbered after s should be included. In particular, s = t = 0 (the default) processes all paths.")
     cpuprofile := getopt.StringLong("cpuprofile", 0, "", "write cpu profile to file")
     getopt.SetParameters("b")
+    printFlag := getopt.BoolLong("printwork", 'p', "Print start, stop interval for base b and exit")
 
     getopt.Parse()
 
@@ -433,6 +440,11 @@ func main() {
     if err != nil {
         fmt.Println("trouble parsing b")
         getopt.PrintUsage(os.Stderr)
+        return
+    }
+
+    if *printFlag {
+        printWork(b)
         return
     }
 
