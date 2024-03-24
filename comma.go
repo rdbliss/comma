@@ -294,7 +294,8 @@ func isFinite(b int, params WorkParams) (int, int, error) {
     // listen for count updates
     var countWg sync.WaitGroup
     ourWork := params.WorkEnd - params.WorkStart
-    bar := progressbar.Default(int64(ourWork))
+    bar := progressbar.NewOptions64(int64(ourWork),
+			progressbar.OptionSetWriter(os.Stderr))
 
     var count atomic.Uint64
 
