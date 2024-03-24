@@ -250,8 +250,9 @@ func isFinite(b int, params WorkParams) (int, int, error) {
         errorString = "isFinite: negative end"
     }
 
+    // behave like slices in python
     if params.WorkEnd > totalWork {
-        errorString = "isFinite: end exceeds total work"
+	params.WorkEnd = totalWork
     }
 
     if errorString != "" {
