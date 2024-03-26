@@ -1,6 +1,6 @@
 This is the repository of the program `comma`, designed to prove that comma
-sequences in arbitrary bases are finite. It uses an algorithm suggested by this
-great paper: [The Comma Sequence: A Simple Sequence With Bizarre
+sequences in arbitrary bases are finite. It uses an algorithm suggested by the
+great paper [The Comma Sequence: A Simple Sequence With Bizarre
 Properties](https://arxiv.org/abs/2401.14346).
 
 The program is implemented in [go](https://go.dev/). Once you have that
@@ -15,10 +15,10 @@ $ ./comma 10
 49896 49896
 ```
 
-This output, specifically that the two integers are the end are equal, shows
+This output, specifically that the two integers at the end are equal, shows
 that all comma sequences in base 10 are finite. This output will likely appear
-near-instantaneously. For a larger base, like 13, the output includes
-a progress bar.
+near-instantaneously, but for a larger base 13, the output includes a progress
+bar.
 
 ```bash
 $ ./comma 13
@@ -41,3 +41,6 @@ $ ./comma -s 903318448032 -t 1806636896064 23 # work the next 1 / 10th
 The `scripts` directory contains the scripts we used to process bases 3 to 23
 (excluding 20 and 21) on the Slurm-based [Rutgers Amarel
 cluster](https://oarc.rutgers.edu/resources/amarel/).
+
+`comma` accepts a few other options for interested tinkerers. Run `comma
+--help` to see a full list.
