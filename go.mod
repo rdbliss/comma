@@ -1,4 +1,4 @@
-module example/stones
+module github.com/rdbliss/comma
 
 go 1.22.1
 
