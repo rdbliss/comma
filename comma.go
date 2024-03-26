@@ -406,21 +406,34 @@ func printWork(b int) {
     fmt.Println((b - 2) * L)
 }
 
+func printVersion( ) {
+    fmt.Println("comma 1.0")
+    fmt.Println("Copyright © 2024 Robert Dougherty-Bliss")
+    fmt.Println("Provided under the MIT license <https://opensource.org/license/mit>")
+}
+
 func main() {
     helpFlag := getopt.BoolLong("help", 'h', "display help")
-    estimateLimit := getopt.IntLong("estimate", 0, 10, "estimate runtime up to b using runtimes from 2 to value")
+    estimateLimit := getopt.IntLong("estimate", 0, 10, "estimate runtime up to b using runtimes from 2 to limit", "limit")
     workers := getopt.IntLong("workers", 'w', runtime.NumCPU() * 2, "number of workers to use processesing paths")
     readers := getopt.IntLong("readers", 'r', runtime.NumCPU(), "number of threads reading results from workers")
-    workStart := getopt.IntLong("workstart", 's', 0, "process only paths numbered from s to t (exclusive)")
+    workStart := getopt.IntLong("workstart", 's', 0, "process only paths numbered from s to t (exclusive); see the documentation for workstart")
     workStop := getopt.IntLong("workstop", 't', 0, "process only paths numbered from s to t (exclusive). A value of 0 indicates that all paths numbered after s should be included. In particular, s = t = 0 (the default) processes all paths.")
-    cpuprofile := getopt.StringLong("cpuprofile", 0, "", "write cpu profile to file")
+    cpuprofile := getopt.StringLong("cpuprofile", 0, "", "write cpu profile to file, readable with go tool pprof", "file")
     getopt.SetParameters("b")
     printFlag := getopt.BoolLong("printwork", 'p', "Print start, stop interval for base b and exit")
+    versionFlag := getopt.BoolLong("version", 'v', "Display version and copyright information")
 
     getopt.Parse()
 
     if *helpFlag {
-        getopt.PrintUsage(os.Stderr)
+        getopt.PrintUsage(os.Stdout)
+        fmt.Println("\n Online repository: <github.com/rdbliss/comma>")
+        return
+    }
+
+    if *versionFlag {
+        printVersion()
         return
     }
 
@@ -437,16 +450,18 @@ func main() {
     args := getopt.Args()
 
     if len(args) < 1 {
-        fmt.Println("Error: missing b")
-        getopt.PrintUsage(os.Stderr)
+        fmt.Fprintln(os.Stderr, "Error: missing b")
+        fmt.Fprintln(os.Stderr, "Usage: comma [options] b")
+        fmt.Fprintln(os.Stderr, "Try -h/--help")
         return
     }
 
     b, err := strconv.Atoi(args[0])
 
     if err != nil {
-        fmt.Println("trouble parsing b")
-        getopt.PrintUsage(os.Stderr)
+        fmt.Fprintln(os.Stderr, "Trouble parsing b")
+        fmt.Fprintln(os.Stderr, "Usage: comma [options] b")
+        fmt.Fprintln(os.Stderr, "Try -h/--help")
         return
     }
 
