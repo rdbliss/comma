@@ -13,8 +13,17 @@ workflow is something like this:
 When the jobs are done, you can compile the results using some shell commands.
 Here's a demo:
 
+```bash
+$ vim driver.sh # change b to, say, 13
+$ ./driver.sh # now wait a long time
+$ cat "./results/13/res"* | awk '{sum += $1; total = $2} END {print sum,total;}'
 ```
-$ ./driver.sh
-$ # wait a long time
-$ cat "./results/BASE/res"* | awk '{sum += $1; total = $2} END {print sum,total;}'
+
+For a real example, this directory also contains the results of our
+computations for base 23. To confirm that all comma sequences in base 23 are
+finite, try the following:
+
+```bash
+$ cat results/23/res* | awk '{sum += $1; total = $2} END {printf "%.0f %.0f\n", sum, total}'
+118291701528000 118291701528000
 ```
