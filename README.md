@@ -17,19 +17,20 @@ $ ./comma 10
 
 This output, specifically that the two integers at the end are equal, shows
 that all comma sequences in base 10 are finite. This output will likely appear
-near-instantaneously, but for a larger base 13, the output includes a progress
-bar.
+near-instantaneously, but for a larger base like 13, the output includes
+a progress bar.
 
 ```bash
 $ ./comma 13
   18% |████                    | (91020747/487567080, 2436646 it/s) [37s:2m42s]
 ```
 
-`comma` is a multithreaded program, but beyond base 15 or so, it is highly
-recommended that you increase the parallelization by running multiple instances
-on the same base at once within a large computing cluster. `comma` accepts
-a set "work range" to allow this. Here is an example demonstrating the
-functionality, but not the parallelization:
+`comma` is a multithreaded program that attempts to use every logical CPU core
+available. Beyond base 15 or so, it is highly recommended that you increase the
+parallelization by running multiple instances on the same base within a large
+computing cluster. `comma` accepts a "work range" to allow work to be broken up
+in such a setting. Here is an example demonstrating the functionality, but not
+the parallelization:
 
 ```bash
 $ ./comma -p 23 # how much work is there for base 23?
